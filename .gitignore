@@ -2,6 +2,7 @@
 .DS_Store
 .ipynb_checkpoints/
 .vscode/
+.idea/
 
 # Python 관련 파일
 __pycache__/
