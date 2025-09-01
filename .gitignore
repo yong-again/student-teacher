@@ -33,3 +33,6 @@ wandb/
 # 데이터 관련
 data/
 notebooks/
+*.png
+*.jpeg
+*.jpg
