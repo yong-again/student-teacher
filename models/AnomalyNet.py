@@ -1,10 +1,6 @@
 import torch
 import torch.nn as nn
-from torchvision.transforms.v2.functional import resize
-
-from FDFE import multiPoolPrepare, multiMaxPooling, unwrapPrepare, unwrapPool
-
-
+from .FDFE import multiPoolPrepare, multiMaxPooling, unwrapPrepare, unwrapPool
 
 class AnomalyNet:
     def __init__(self):

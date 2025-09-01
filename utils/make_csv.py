@@ -36,14 +36,15 @@ def process_mvtec_data(path, categories, file_pattern, split_type, has_anomaly_l
         df = pd.DataFrame(file_paths, columns=['filepath'])
         df['category'] = category_name
         df['split'] = split_type
+        sep = os.path.sep
 
-        # Extract anomaly and filename if applicabler
+        # Extract anomaly and filename if applicable
         if has_anomaly_label:
-            df['anomaly'] = df['filepath'].apply(lambda x: x.split(f'/{split_type}/')[1].split('/')[0])
-            df['filename'] = df['filepath'].apply(lambda x: x.split(f'/{split_type}/')[1].split('/')[1])
+            df['anomaly'] = df['filepath'].apply(lambda x: x.split(f'{sep}{split_type}{sep}')[1].split(sep)[0])
+            df['filename'] = df['filepath'].apply(lambda x: x.split(f'{sep}{split_type}{sep}')[1].split(sep)[-1])
             df['label'] = 1
         else:
-            df['filename'] = df['filepath'].apply(lambda x: x.split(f'/{split_type}/')[1].split('/')[1])
+            df['filename'] = df['filepath'].apply(lambda x: x.split(f'{sep}{split_type}{sep}')[1].split(sep)[-1])
             df['label'] = 0
 
         df_list.append(df)
@@ -53,7 +54,6 @@ def process_mvtec_data(path, categories, file_pattern, split_type, has_anomaly_l
 
     combined_df = pd.concat(df_list, ignore_index=True)
     return combined_df.drop(columns=['filepath'])
-
 
 def save_dataframes(dfs, save_dir):
     """Saves DataFrames to CSV files in the specified directory."""
@@ -70,22 +70,25 @@ if __name__ == '__main__':
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mvtec_path = get_mvtec_path(root_dir)
     categories = get_categories(mvtec_path)
+    sep = os.path.sep
 
     # Define file patterns
-    train_reg = 'train/good/*.png'
-    test_reg = 'test/*/*.png'
-    gt_reg = 'ground_truth/*/*.png'
+    train_reg = f'train{sep}good{sep}*.png'
+    test_reg = f'test{sep}*{sep}*.png'
+    gt_reg = f'ground_truth{sep}*{sep}*.png'
 
     # Process and create DataFrames
     df_train = process_mvtec_data(mvtec_path, categories, train_reg, 'train')
     df_test = process_mvtec_data(mvtec_path, categories, test_reg, 'test', has_anomaly_label=True)
     df_gt = process_mvtec_data(mvtec_path, categories, gt_reg, 'ground_truth', has_anomaly_label=True)
+    df_resnet_train = pd.concat([df_train, df_test])
 
     # Save DataFrames
     save_path = os.path.join(root_dir, 'data', 'csv')
     dataframes_to_save = {
         'train': df_train,
         'test': df_test,
-        'ground_truth': df_gt
+        'ground_truth': df_gt,
+        'resnet_train': df_resnet_train,
     }
     save_dataframes(dataframes_to_save, save_path)
