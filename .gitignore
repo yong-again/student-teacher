@@ -11,7 +11,7 @@ __pycache__/
 .Python
 
 # 가상 환경
-venv/
+.venv
 env/
 .env
 
