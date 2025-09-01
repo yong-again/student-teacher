@@ -36,3 +36,4 @@ notebooks/
 *.png
 *.jpeg
 *.jpg
+dataset/samples
