@@ -33,4 +33,7 @@ wandb/
 # 데이터 관련
 data/
 notebooks/
-uv.lock
+*.png
+*.jpeg
+*.jpg
+dataset/samples
