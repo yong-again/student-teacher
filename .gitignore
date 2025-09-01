@@ -3,6 +3,7 @@
 .ipynb_checkpoints/
 .vscode/
 .idea/
+pyproject.toml
 
 # Python 관련 파일
 __pycache__/
@@ -36,4 +37,4 @@ notebooks/
 *.png
 *.jpeg
 *.jpg
-dataset/samples
+dataset/samples/
