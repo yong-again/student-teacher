@@ -29,7 +29,7 @@ class AnomalyNet65(nn.Module):
 
         self.conv1 = nn.Conv2d(3, 128, 5, 1)
         self.conv2 = nn.Conv2d(128, 128, 5, 1)
-        self.conv3 = nn.Conv2d(128, 256, 4, 1)
+        self.conv3 = nn.Conv2d(128, 256, 5, 1)
         self.conv4 = nn.Conv2d(256, 256, 4, 1)
         self.conv5 = nn.Conv2d(256, 128, 1, 1)
         self.output_channels = self.conv5.out_channels
