@@ -17,7 +17,7 @@ def train():
     config = TrainResNet()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     sep = os.path.sep
-    print(f"Deivce: {device}")
+    print(f"Device: {device}")
 
     resnet18 = AnomalyResNet()
     resnet18.to(device)
@@ -58,7 +58,7 @@ def train():
         running_corrects = 0
         max_running_corrects = 0
 
-        for i, (img, labels) in tqdm(enumerate(dataloader), desc="Training ResNet for Knowledge Distillation"):
+        for i, (img, labels) in enumerate(tqdm(dataloader, desc="Training ResNet for Knowledge Distillation")):
             optimizer.zero_grad()
             input = img.to(device)
             target = labels.to(device)
