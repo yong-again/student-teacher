@@ -25,11 +25,11 @@ class AnomalyNet65(nn.Module):
         super(AnomalyNet65, self).__init__()
         self.patch_width = 65
         self.patch_height = 65
-        self.multiPoolPrepare = multiPoolPrepare(self.patch_width, self.patch_height)
+        self.multiPoolPrepare = multiPoolPrepare(self.patch_height, self.patch_width)
 
         self.conv1 = nn.Conv2d(3, 128, 5, 1)
         self.conv2 = nn.Conv2d(128, 128, 5, 1)
-        self.conv3 = nn.Conv2d(128, 256, 4, 1)
+        self.conv3 = nn.Conv2d(128, 256, 5, 1)
         self.conv4 = nn.Conv2d(256, 256, 4, 1)
         self.conv5 = nn.Conv2d(256, 128, 1, 1)
         self.output_channels = self.conv5.out_channels
@@ -42,7 +42,7 @@ class AnomalyNet65(nn.Module):
         self.multiMaxPooling  = multiMaxPooling(2, 2,2,2 )
         self.unwrapPrepare = unwrapPrepare()
 
-        self.l_relu = nn.LeakyReLU()
+        self.l_relu = nn.LeakyReLU(5e-3)
 
     def fdfe(self, x):
         imH = x.size(2)
@@ -52,7 +52,7 @@ class AnomalyNet65(nn.Module):
         unwrapPool2 = unwrapPool(self.output_channels, imH / (2 * 2), imW / (2 * 2), 2, 2)
         unwrapPool1 = unwrapPool(self.output_channels, imH / 2, imW / 2, 2, 2)
 
-        x = multiPoolPrepare(x)
+        x = self.multiPoolPrepare(x)
 
         x = self.l_relu(self.conv1(x))
         x = self.multiMaxPooling(x)
@@ -242,14 +242,19 @@ if __name__ == '__main__':
     resnet18 = models.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
     resnet18 = nn.Sequential(*list(resnet18.children())[:-1])
 
-    net = AnomalyNet.create((pH, pW))
     x = torch.randn(6, 3, pH, pW)
 
-    y_net = net(x)
+    teacher = AnomalyNet().create((pH, pW))
+    teacher_fdfe = teacher.fdfe(x)
+
+
+    y_net = teacher_fdfe(x)
     y_resnet18 = resnet18(x)
 
     print(y_net.size())
     print(torch.squeeze(y_resnet18).size())
+
+
 
 
 
