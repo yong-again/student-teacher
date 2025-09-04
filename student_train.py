@@ -1,17 +1,17 @@
 import torch
 import torch.nn as nn
+import numpy as np
+
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
 from tqdm.auto import tqdm
-from einops import rearrange, repeat
 from torchvision import transforms
 
 from dataset.AnomalyDataset import AnomalyDataset
 from models.AnomalyNet import AnomalyNet
-from models.AnomalyResNet import AnomalyResNet
-from utils.utils import load_model, get_model_path, increment_mean_and_var, mc_dropout
-from utils.loss import knowledge_distillation, compactness_loss, student_loss
+from utils.utils import load_model, get_model_path, increment_mean_and_var
+from utils.loss import student_loss
 from configs.config import TrainStudent
 
 
@@ -26,18 +26,17 @@ def train():
     teacher.to(device).eval()
 
     # load teacher model
-    model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', CONFIG.patch_size)
-    print(model_path)
-    if os.path.exists(model_path):
-        load_model(teacher, model_path)
-        print(f"Successfully loaded: {model_path}")
+    teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', CONFIG.patch_size)
+    if os.path.exists(teacher_model_path):
+        load_model(teacher, teacher_model_path)
+        print(f"Successfully loaded: {teacher_model_path}")
 
     # students networks
     students = [AnomalyNet.create((CONFIG.patch_size, CONFIG.patch_size)) for _ in range(CONFIG.n_students)]
     students = [student.to(device) for student in students]
 
     # define optimizer
-    optimizer = [optim.Adam(student.parameters(),
+    optimizers = [optim.Adam(student.parameters(),
                             lr=CONFIG.learning_rate,
                             weight_decay=CONFIG.weight_decay) for student in students]
 
@@ -46,10 +45,8 @@ def train():
         root_dir=CONFIG.root_dir,
         transforms=transforms.Compose([
             transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
-            transforms.RandomCrop((CONFIG.patch_size, CONFIG.patch_size)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
-            transforms.RandomRotation(180),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]),
@@ -67,7 +64,7 @@ def train():
 
     print(f"Preprocessing of training dataset {CONFIG.category}")
 
-    # compute incremental mean an var over training set
+    # compute incremental mean a var over training set
     # because the whole training set takes too much memory space
     with torch.no_grad():
         t_mu, t_var, N = 0, 0, 0
@@ -84,7 +81,41 @@ def train():
         num_workers=CONFIG.num_workers,
     )
 
+    for j, student in enumerate(students):
+        min_running_loss = np.inf
+        print(f'Training Student {j} on anomaly-free dataset ...')
 
+        for epoch in range(CONFIG.num_epochs):
+            running_loss = 0.0
+
+            for i, (images, labels) in enumerate(dataloader):
+                optimizers[j].zero_grad()
+
+                inputs = images.to(device)
+                with torch.no_grad():
+                    targets = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
+                outputs = student.fdfe(inputs)
+                loss = student_loss(targets, outputs)
+
+                loss.backward()
+                optimizers[j].step()
+                running_loss += loss.item()
+
+                if i % 10 == 9:
+                    print(f"Epoch [{epoch}/{CONFIG.num_epochs}], iter {i+1} \t Loss: {running_loss:.3f}")
+
+                    if running_loss < min_running_loss and epoch > 0:
+                        model_path = get_model_path(CONFIG.root_dir,
+                                                    CONFIG.category,
+                                                    'student',
+                                                    CONFIG.patch_size,
+                                                    j)
+                        torch.save(student.state_dict(), model_path)
+                        print(f"Loss decreased: {min_running_loss} -> {running_loss}.")
+                        print(f"Model saved to {model_path}.")
+
+                    min_running_loss = min(min_running_loss, running_loss)
+                    running_loss = 0.0
 
 if __name__ == "__main__":
     train()
