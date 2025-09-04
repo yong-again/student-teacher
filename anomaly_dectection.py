@@ -11,4 +11,3 @@ from torch.utils.data.dataloader import DataLoader
 from utils import increment_mean_and_var, load_model
 from sklearn.metrics import roc_curve, auc
 
-
