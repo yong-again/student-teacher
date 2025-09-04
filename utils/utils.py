@@ -12,12 +12,14 @@ def load_model(model, path):
         print(traceback.format_exc())
         print(f"Failed to load {path}")
 
-def get_model_path(root_dir, category, type, patch_size=None):
+def get_model_path(root_dir, category, type, patch_size=None, number=None):
     model_weights_base_path = os.path.join(root_dir, 'weights', category)
     if type.lower() == 'resent18':
         return os.path.join(model_weights_base_path, f'resnet18_{category}.pth')
     elif type == 'teacher' and patch_size is not None:
         return os.path.join(model_weights_base_path, f'teacher_{patch_size}.pth')
+    elif type == 'student' and patch_size is not None:
+        return os.path.join(model_weights_base_path, f'student_{patch_size}_{number}.pth')
 
 def increment_mean_and_var(mu_N, var_N, N, outputs):
     # batch: [batch, h, w, vector]
