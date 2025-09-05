@@ -6,17 +6,22 @@ from PIL import Image
 from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset
 
+
 class AnomalyDataset(Dataset):
-    def __init__(self, root_dir, transforms=False, split='train', category=None):
+    def __init__(self, root_dir, transforms=False, gt_transforms=False, split='train', category=None):
         super(AnomalyDataset, self).__init__()
         self.root_dir = root_dir
         self.category = category
         self.split = split
         self.transforms = transforms
+        self.gt_transforms = gt_transforms
         self.csv = self._get_datafile()
 
     def _get_datafile(self):
-        data_path = os.path.join(self.root_dir, 'data', 'csv', self.split + '.csv')
+        if self.split == 'gt':
+            data_path = os.path.join(self.root_dir, 'data', 'csv', 'ground_truth' + '.csv')
+        else:
+            data_path = os.path.join(self.root_dir, 'data', 'csv', self.split + '.csv')
         df = pd.read_csv(data_path)
         df = df.loc[df['category'] == self.category]
         return df
@@ -30,14 +35,14 @@ class AnomalyDataset(Dataset):
 
         if self.split == 'train':
             img_path = os.path.join(self.root_dir, sep, self.category, self.split, 'good',
-                                row['filename'])
+                                    row['filename'])
             label = 0
         elif self.split == 'test':
             img_path = os.path.join(self.root_dir, sep, self.category, 'test', row['anomaly'],
                                     row['filename'])
             label = 1 if row['anomaly'] != 'good' else 0
         elif self.split == 'gt':
-            img_path = os.path.join(self.root_dir, sep, self.category, 'ground_truth', row[idx]['anomaly'],
+            img_path = os.path.join(self.root_dir, sep, self.category, 'ground_truth', row['anomaly'],
                                     row[idx]['filename'])
             label = 1 if row['anomaly'] != 'good' else 0
 
@@ -48,6 +53,9 @@ class AnomalyDataset(Dataset):
 
         if self.transforms:
             img = self.transforms(img)
+
+        elif self.gt_transforms:
+            img = self.gt_transforms(img)
 
         return img, label
 
@@ -76,11 +84,11 @@ class AnomalyResnetDataset(Dataset):
 
         if row['split'] == 'train':
             img_path = os.path.join(self.root_dir, sep, self.category, row['split'], 'good',
-                                row['filename'])
+                                    row['filename'])
             label = 1 if row['split'] != 'good' else 0
         elif row['split'] == 'test':
             img_path = os.path.join(self.root_dir, sep, self.category, row['split'], row['anomaly'],
-                                row['filename'])
+                                    row['filename'])
             label = 1 if row['split'] != 'good' else 0
         else:
             raise ValueError(f'Unknown split: {self.split}')
@@ -90,6 +98,7 @@ class AnomalyResnetDataset(Dataset):
             img = self.transforms(img)
 
         return img, label
+
 
 if __name__ == '__main__':
     # test code
@@ -119,14 +128,30 @@ if __name__ == '__main__':
     #         print(label)
     #         break
 
-    dataset = AnomalyResnetDataset(root_dir=root_dir, category='zipper', transforms=transform)
-    dataloader = DataLoader(dataset, batch_size=6, shuffle=True)
-    origin_csv = pd.read_csv(r'C:\works\student-teacher\data\csv\resnet_train.csv')
-    print("origin csv length:", len(origin_csv.loc[origin_csv['category'] == 'zipper']))
+    # dataset = AnomalyResnetDataset(root_dir=root_dir, category='zipper', transforms=transform)
+    # dataloader = DataLoader(dataset, batch_size=6, shuffle=True)
+    # origin_csv = pd.read_csv(r'C:\works\student-teacher\data\csv\resnet_train.csv')
+    # print("origin csv length:", len(origin_csv.loc[origin_csv['category'] == 'zipper']))
+    #
+    # print(f'dataset length: {len(dataset)}')
+    # print(f'dataloader length: {len(dataloader)}')
+    # sep = os.path.sep
+    #
+    # for i, (img, label) in enumerate(dataloader):
+    #     # save sample
+    #     torchvision.utils.save_image(img, f'.{sep}samples{sep}sample_{i}.png', nrow=3)
+    #
+    #     if i == 10:
+    #         print(img.size())
+    #         print(label)
+    #         break
 
-    print(f'dataset length: {len(dataset)}')
-    print(f'dataloader length: {len(dataloader)}')
-    sep = os.path.sep
+    dataset = AnomalyDataset(root_dir=root_dir, category='zipper',
+                             transforms=transform,
+                             gt_transforms=transform,
+                             split='gt')
+
+    dataloader = DataLoader(dataset, batch_size=6, shuffle=True)
 
     for i, (img, label) in enumerate(dataloader):
         # save sample
@@ -136,5 +161,3 @@ if __name__ == '__main__':
             print(img.size())
             print(label)
             break
-
-
