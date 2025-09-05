@@ -36,7 +36,7 @@ def get_variance_map(students_pred):
 def calibrate(teacher, students, dataloader, device):
     print("Calibrating teacher on students")
     t_mu, t_var, t_N = 0, 0, 0
-    for _, (images, labels) in enumerate(tqdm(dataloader)):
+    for _, (images, labels, mask) in enumerate(tqdm(dataloader)):
         inputs = images.to(device)
         t_out = teacher.fdfe(inputs)
         t_mu, t_var, t_N = increment_mean_and_var(t_mu, t_var, t_N, t_out)
@@ -46,7 +46,7 @@ def calibrate(teacher, students, dataloader, device):
     mu_err, var_err, N_err = 0, 0, 0
     mu_var, var_var, N_var = 0, 0, 0
 
-    for _, (images, labels) in enumerate(tqdm(dataloader)):
+    for _, (images, labels, mask) in enumerate(tqdm(dataloader)):
         inputs = images.to(device)
 
         t_out = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
@@ -125,13 +125,25 @@ def detect_anomaly():
             load_model(students[i], student_model_path)
             print(f"Successfully student model loaded: {student_model_path}")
 
+    image_transforms = transforms.Compose([
+        transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+
+    mask_transform = transforms.Compose([
+        transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
+        transforms.ToTensor()
+    ])
+
     # calibration on anomaly-free dataset
     calib_dataset = AnomalyDataset(CONFIG.root_dir,
-                                   transforms=transforms.Compose([
-                                       transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
-                                       transforms.ToTensor(),
-                                       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
+                                   category=CONFIG.category,
+                                   split='train',  # train 데이터 사용
+                                   transform=image_transforms,
+                                   mask_transform=mask_transform
                                    )
+
     calib_dataloader = DataLoader(calib_dataset,
                                   batch_size=CONFIG.batch_size,
                                   shuffle=False,
@@ -140,15 +152,54 @@ def detect_anomaly():
 
     # Load test dataset
     test_dataset = AnomalyDataset(root_dir=CONFIG.root_dir,
-                                  transforms=transforms.Compose([
-                                       transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
-                                       transforms.ToTensor(),
-                                       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
-                                  gt_transforms=transforms.Compose([
-                                      transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
-                                      transforms.ToTensor(),
-                                      transforms.ToTensor()]),
-                                   )
+                                  transform=image_transforms,
+                                  mask_transform=mask_transform,
+                                  category=CONFIG.category,
+                                  split='test'
+                                  )
+    test_dataloader= DataLoader(test_dataset, shuffle=False,
+                                batch_size=CONFIG.batch_size,
+                                num_workers=CONFIG.num_workers)
+
+
+    y_score, y_true = np.array([]), np.array([])
+    test_iter = iter(test_dataloader)
+
+    for images, labels, masks in tqdm(test_dataloader):
+        inputs = images.to(device)
+        gt_masks = masks.to(device)
+
+        score_map = get_score_map(inputs, teacher, students, params)
+        y_score = np.concatenate(y_score, rearrange(score_map, 'b h w -> (b h w)').numpy())
+        y_true = np.concatenate(y_true, rearrange(gt_masks, 'b c h w -> b h w c').numpy())
+
+        if CONFIG.visualize:
+            unorm = transforms.Normalize((-1, -1,-1), (2, 2, 2))
+            max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var']) \
+            + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
+            img_in = rearrange(unorm(inputs), 'b c h w -> b h w c')
+            gt_in = rearrange(gt_masks, 'b c h w -> b h w c')
+
+            for b in range(CONFIG.batch_size):
+                visualize(
+                    img_in[b:, :, :, :].squeeze(),
+                    gt_in[b:, :, :, :].squeeze(),
+                    score_map[b, :, :].squeeze().cpu(),
+                    max_score
+                )
+
+    # AUC-ROC
+    fpr, tpr, thresholds = roc_curve(y_true.astype(int), y_score)
+    plt.figure(figsize=(13, 3))
+    plt.plot(fpr, tpr, 'r', label="ROC")
+    plt.plot(fpr, fpr, 'b', label="random")
+    plt.title(f'ROC AUC: {auc(fpr, tpr)}')
+    plt.xlabel('FPR')
+    plt.ylabel('TPR')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
 
 
 if __name__ == "__main__":

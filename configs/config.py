@@ -49,6 +49,7 @@ class Inference:
     image_size: int = 256
     visualize: bool = True
     batch_size: int = 1
+    num_workers: int = 4
 
 if __name__ == '__main__':
     config = TrainResNet()
