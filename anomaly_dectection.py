@@ -36,7 +36,7 @@ def get_variance_map(students_pred):
 def calibrate(teacher, students, dataloader, device):
     print("Calibrating teacher on students")
     t_mu, t_var, t_N = 0, 0, 0
-    for _, (images, labels, mask) in enumerate(tqdm(dataloader)):
+    for _, (images, labels, masks) in enumerate(tqdm(dataloader)):
         inputs = images.to(device)
         t_out = teacher.fdfe(inputs)
         t_mu, t_var, t_N = increment_mean_and_var(t_mu, t_var, t_N, t_out)
@@ -46,7 +46,7 @@ def calibrate(teacher, students, dataloader, device):
     mu_err, var_err, N_err = 0, 0, 0
     mu_var, var_var, N_var = 0, 0, 0
 
-    for _, (images, labels, mask) in enumerate(tqdm(dataloader)):
+    for _, (images, labels, masks) in enumerate(tqdm(dataloader)):
         inputs = images.to(device)
 
         t_out = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
@@ -139,7 +139,7 @@ def detect_anomaly():
     # calibration on anomaly-free dataset
     calib_dataset = AnomalyDataset(CONFIG.root_dir,
                                    category=CONFIG.category,
-                                   split='train',  # train 데이터 사용
+                                   split='train',
                                    transform=image_transforms,
                                    mask_transform=mask_transform
                                    )
@@ -148,6 +148,7 @@ def detect_anomaly():
                                   batch_size=CONFIG.batch_size,
                                   shuffle=False,
                                   num_workers=CONFIG.num_workers)
+
     params = calibrate(teacher, students, calib_dataloader, device)
 
     # Load test dataset
@@ -163,7 +164,6 @@ def detect_anomaly():
 
 
     y_score, y_true = np.array([]), np.array([])
-    test_iter = iter(test_dataloader)
 
     for images, labels, masks in tqdm(test_dataloader):
         inputs = images.to(device)
@@ -199,7 +199,6 @@ def detect_anomaly():
     plt.legend()
     plt.grid()
     plt.show()
-
 
 
 if __name__ == "__main__":

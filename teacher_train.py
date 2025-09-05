@@ -47,7 +47,7 @@ def train():
 
     dataset = AnomalyDataset(
         root_dir=CONFIG.root_dir,
-        transforms=transforms.Compose([
+        transform=transforms.Compose([
             transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
             transforms.RandomCrop((CONFIG.patch_size, CONFIG.patch_size)),
             transforms.RandomHorizontalFlip(),

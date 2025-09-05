@@ -23,7 +23,6 @@ env/
 *.h5
 *.pkl
 checkpoints/
-models/
 
 # 로그 및 결과 파일
 logs/
