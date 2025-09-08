@@ -73,7 +73,7 @@ def train():
             max_running_corrects += len(target)
             running_corrects += torch.sum(preds == target.data)
 
-        print(f"{TrainResNet.category} Loss: {running_loss / len(dataloader):.4f}")
+        print(f"Epoch : {epoch + 1}/{config.epochs} {TrainResNet.category} Loss: {running_loss / len(dataloader):.4f}")
         accuracy = running_corrects.double() / max_running_corrects
 
         if running_loss < min_running_loss and epoch > 0:

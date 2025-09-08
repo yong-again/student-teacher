@@ -2,6 +2,8 @@ import torch
 import os
 import traceback
 import torch.nn as nn
+from datetime import datetime
+from pathlib import Path
 
 def load_model(model, path):
     try:
@@ -40,4 +42,18 @@ def mc_dropout(model):
                 or isinstance(module, nn.Dropout3d):
             module.train()
 
+def create_experiment_path(root_path, root="results", category="basic"):
+    """
+    모델 훈련 결과 및 테스트 결과 저장 경로 생성
+    """
+    date_dir = datetime.now().strftime("%Y%m%d")
+    base_dir = root_path / Path(root) / date_dir / category
+    base_dir.mkdir(parents=True, exist_ok=True)
 
+    exp_num = 1
+    while True:
+        exp_dir = base_dir / (f"exp" if exp_num == 1 else f"exp{exp_num}")
+        if not exp_dir.exists():
+            exp_dir.mkdir()
+            return exp_dir
+        exp_num += 1

@@ -68,7 +68,7 @@ def train():
     # because the whole training set takes too much memory space
     with torch.no_grad():
         t_mu, t_var, N = 0, 0, 0
-        for i, (images, labels) in enumerate(tqdm(dataloader)):
+        for i, (images, labels, masks) in enumerate(tqdm(dataloader)):
             inputs = images.to(device)
             t_out = teacher.fdfe(inputs)
             t_mu, t_var, N = increment_mean_and_var(t_mu, t_var, N, t_out)
@@ -88,7 +88,7 @@ def train():
         for epoch in range(CONFIG.num_epochs):
             running_loss = 0.0
 
-            for i, (images, labels) in enumerate(dataloader):
+            for i, (images, labels, masks) in enumerate(dataloader):
                 optimizers[j].zero_grad()
 
                 inputs = images.to(device)

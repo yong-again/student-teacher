@@ -56,6 +56,7 @@ def train():
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]),
+        split='train',
         category=CONFIG.category,
     )
 
@@ -72,7 +73,7 @@ def train():
     for epoch in range(CONFIG.num_epochs):
         running_loss = 0.0
 
-        for i, (images, labels) in enumerate(tqdm(dataloader, desc="Training Teacher Network")):
+        for i, (images, labels, masks) in enumerate(tqdm(dataloader, desc="Training Teacher Network")):
             optimizer.zero_grad()
 
             inputs = images.to(device)

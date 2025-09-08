@@ -11,7 +11,7 @@ from models.AnomalyNet import AnomalyNet
 from dataset.AnomalyDataset import AnomalyDataset
 from torchvision import transforms
 from torch.utils.data.dataloader import DataLoader
-from utils import increment_mean_and_var, load_model, get_model_path
+from utils import increment_mean_and_var, load_model, get_model_path, create_experiment_path
 from sklearn.metrics import roc_curve, auc
 from configs import Inference
 
@@ -79,25 +79,35 @@ def get_score_map(inputs, teacher, students, params):
 
     return score_map
 
-def visualize(img, gt, score_map, max_score):
+def visualize(img, gt, score_map, max_score, save_path=None):
+    """
+    원본 이미지, Ground Truth, Score Map을 시각화하고 파일로 저장합니다.
+    """
     plt.figure(figsize=(13, 3))
     plt.subplot(1, 3, 1)
     plt.imshow(img)
-    plt.title(f"Original image")
+    plt.title("Original Image")
+    plt.axis('off')
 
     plt.subplot(1, 3, 2)
     plt.imshow(gt, cmap='gray')
-    plt.title(f"Ground truth")
+    plt.title("Ground Truth")
+    plt.axis('off')
 
     plt.subplot(1, 3, 3)
-    plt.imshow(score_map, cmap='jet')
     plt.imshow(img, cmap='gray', interpolation='none')
-    plt.imshow(score_map, camp='jet', alpha=0.5, interpolation='none')
-    plt.colorbar(extend='both')
-    plt.title(f"Anomaly score map")
-
-    plt.clim(0, max_score)
-    plt.show(block=True)
+    plt.imshow(score_map, cmap='jet', alpha=0.5, interpolation='none')
+    plt.colorbar()
+    plt.title("Anomaly Score Map")
+    plt.axis('off')
+    
+    # `save_path`가 제공되면 그림을 저장하고, 그렇지 않으면 화면에 표시합니다.
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    else:
+        plt.show()
+    
+    plt.close()
 
 def detect_anomaly():
     CONFIG = Inference()
@@ -158,48 +168,71 @@ def detect_anomaly():
                                   category=CONFIG.category,
                                   split='test'
                                   )
+    
     test_dataloader= DataLoader(test_dataset, shuffle=False,
                                 batch_size=CONFIG.batch_size,
                                 num_workers=CONFIG.num_workers)
 
 
     y_score, y_true = np.array([]), np.array([])
+    result_dir = create_experiment_path(CONFIG.root_dir, category=CONFIG.category)
 
+    print(f"\nSaving results to {result_dir}")
+    img_count = 0
     for images, labels, masks in tqdm(test_dataloader):
         inputs = images.to(device)
         gt_masks = masks.to(device)
 
         score_map = get_score_map(inputs, teacher, students, params)
-        y_score = np.concatenate(y_score, rearrange(score_map, 'b h w -> (b h w)').numpy())
-        y_true = np.concatenate(y_true, rearrange(gt_masks, 'b c h w -> b h w c').numpy())
+        y_score = np.concatenate((y_score, rearrange(score_map, 'b h w -> (b h w)').cpu().numpy()))
+        y_true = np.concatenate((y_true, rearrange(gt_masks, 'b c h w -> (b h w c)').cpu().numpy()))
 
         if CONFIG.visualize:
             unorm = transforms.Normalize((-1, -1,-1), (2, 2, 2))
             max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var']) \
             + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
-            img_in = rearrange(unorm(inputs), 'b c h w -> b h w c')
-            gt_in = rearrange(gt_masks, 'b c h w -> b h w c')
+            img_in = rearrange(unorm(inputs), 'b c h w -> b h w c').cpu()
+            gt_in = rearrange(gt_masks, 'b c h w -> b h w c').cpu()
+            
+            for b in range(inputs.shape[0]):                
+                save_path = os.path.join(result_dir, f"images/img_{b:02d}{img_count}.png")
+                visualize(img_in[b].squeeze(),
+                          gt_in[b].squeeze(),
+                          score_map[b].squeeze().cpu().numpy(),
+                          max_score,
+                          save_path=save_path)
+                img_count += 1
+                
+    y_true = np.where(y_true > 0.5, 1, 0).astype(int)
+    
+    if len(np.unique(y_true) > 1):
+        fpr, tpr, _ = roc_curve(y_true, y_score)
+        pixel_auroc = auc(fpr, tpr)
+        print(f"Pixel-level AUROC: {pixel_auroc:.4f}")
+        
+        # ROC Curve 시각화 및 저장
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {pixel_auroc:.4f})')
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title(f'Receiver Operating Characteristic for {CONFIG.category}')
+        plt.legend(loc="lower right")
+        plot_path = os.path.join(result_dir, 'roc_curve.png')
+        plt.savefig(plot_path)
+        print(f"ROC curve plot saved to {plot_path}")
+        plt.close()
 
-            for b in range(CONFIG.batch_size):
-                visualize(
-                    img_in[b:, :, :, :].squeeze(),
-                    gt_in[b:, :, :, :].squeeze(),
-                    score_map[b, :, :].squeeze().cpu(),
-                    max_score
-                )
+    else:
+        print("Could not calculate AUROC. All ground truth labels are the same.")
+        
+    # 점수 맵(y_score)과 정답 마스크(y_true)를 .npy 파일로 저장
+    np.save(os.path.join(result_dir, 'y_score.npy'), y_score)
+    np.save(os.path.join(result_dir, 'y_true.npy'), y_true)
 
-    # AUC-ROC
-    fpr, tpr, thresholds = roc_curve(y_true.astype(int), y_score)
-    plt.figure(figsize=(13, 3))
-    plt.plot(fpr, tpr, 'r', label="ROC")
-    plt.plot(fpr, fpr, 'b', label="random")
-    plt.title(f'ROC AUC: {auc(fpr, tpr)}')
-    plt.xlabel('FPR')
-    plt.ylabel('TPR')
-    plt.legend()
-    plt.grid()
-    plt.show()
-
+    print("Results saved successfully.")
 
 if __name__ == "__main__":
     detect_anomaly()

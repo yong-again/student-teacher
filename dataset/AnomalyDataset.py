@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 class AnomalyDataset(Dataset):
-    def __init__(self, root_dir, transform=False, mask_transform=False, split='train', category=None):
+    def __init__(self, root_dir, transform=None, mask_transform=None, split='train', category=None):
         super(AnomalyDataset, self).__init__()
         self.root_dir = root_dir
         self.category = category
@@ -17,13 +17,15 @@ class AnomalyDataset(Dataset):
         self.mask_transform = mask_transform
         self.csv = self._get_datafile()
 
-        if mask_transform in None:
+        if mask_transform is None:
             self.mask_transform = transforms.Compose([transforms.ToTensor()])
         else:
             self.mask_transform = mask_transform
 
         if self.split == 'test':
             self.csv = self._get_datafile()
+            self.image_files = self.csv.apply(lambda row: os.path.join(self.root_dir,\
+                f'data/mvtec_AD/{self.category}/test/{row["anomaly"]}/{row["filename"]}'), axis=1).tolist()
         elif self.split == 'train':
             train_dir = os.path.join(self.root_dir, f'data/mvtec_AD/{self.category}/train/good')
             self.image_files = [os.path.join(train_dir, f) for f in os.listdir(train_dir) if f.endswith('.png')]
@@ -34,6 +36,7 @@ class AnomalyDataset(Dataset):
         data_path = os.path.join(self.root_dir, 'data', 'csv', 'test.csv')
         df = pd.read_csv(data_path)
         df = df.loc[df['category'] == self.category]
+        df = df.loc[df['anomaly'] != 'good']
 
         return df
 
@@ -42,13 +45,11 @@ class AnomalyDataset(Dataset):
 
     def __getitem__(self, idx):
         mask: Image.Image
-
         image_path = self.image_files[idx]
         img = Image.open(image_path).convert('RGB')
 
         if self.split == ' train':
             label = 0
-
         else:
             parts = image_path.split(os.path.sep)
             anomaly_type = parts[-2]
@@ -57,6 +58,7 @@ class AnomalyDataset(Dataset):
 
             if self.split == 'train':
                 mask = Image.new('L', img.size, 0)
+                
             else:
                 try:
                     filename_without_ext = os.path.splitext(filename)[0]
@@ -70,7 +72,7 @@ class AnomalyDataset(Dataset):
 
         if self.transform:
             img = self.transform(img)
-
+            
         if self.mask_transform:
             mask = self.mask_transform(mask)
 
@@ -119,6 +121,7 @@ if __name__ == '__main__':
     # test code
     from torchvision import transforms
     import torchvision
+    from torch.utils.data import DataLoader, Dataset
 
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     transform = transforms.Compose([
@@ -126,3 +129,19 @@ if __name__ == '__main__':
         transforms.CenterCrop(256),
         transforms.ToTensor(),
     ])
+    
+    train_dataset = AnomalyDataset(root_dir, transform=transform, split='train', category='bottle')
+    train_dataloader = DataLoader(
+        train_dataset,
+        shuffle=True,
+        batch_size=4
+    )
+    print("dataset length:", len(train_dataset))
+    print("train_loader length:", len(train_dataloader))
+    
+    for i, (image, label, mask) in enumerate(train_dataloader):
+        print(image.size)
+        print(label.size)
+        print(mask.size)
+        
+        break
