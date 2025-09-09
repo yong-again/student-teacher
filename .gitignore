@@ -1,0 +1,41 @@
+# 운영 체제 및 편집기 파일
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.venv-backups/
+pyproject.toml
+
+# Python 관련 파일
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# 가상 환경
+.venv
+env/
+.env
+
+# 딥러닝 관련
+# 모델 체크포인트
+*.pt
+*.pth
+*.h5
+*.pkl
+checkpoints/
+
+# 로그 및 결과 파일
+logs/
+results/
+outputs/
+wandb/
+model/
+
+# 데이터 관련
+data/
+notebooks/
+*.png
+*.jpeg
+*.jpg
+dataset/samples/
