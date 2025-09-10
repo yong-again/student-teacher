@@ -48,8 +48,12 @@ einops
             │         └──  good/
             └── capsule/ ...
     ```
-
-2. Train the model:
+2. Make csv files:
+   ```bash
+   cd ./utils
+   python make_csv.py
+   ```
+3. Train the model:
 - If you want to resnet18 as teacher network
     
   ```bash
@@ -64,7 +68,7 @@ einops
     python student_train.py
     ```
   
-3. Evaluate the model:
+4. Evaluate the model:
     ```bash
    python anomaly_detection.py
    ```
