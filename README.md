@@ -22,7 +22,7 @@ einops
     ```
 2. Install the required packages:
     ```bash
-       pip install -r requirements.txt
+    pip install -r requirements.txt
     ```
 ## Usage
 1. Prepare your dataset in the following structure:
@@ -137,4 +137,7 @@ You can find the pre-trained models in the `./weights/{category}` directory.
 ## Results
 The results of the anomaly detection can be found in the `./results/{datetime}/{category}/exp` directory.
 
+## references
+- [Student-Teacher Anomaly Detection](https://arxiv.org/pdf/1911.02357v2)
+- [Official git hub](https://github.com/denguir/student-teacher-anomaly-detection)
 
