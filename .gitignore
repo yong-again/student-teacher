@@ -3,6 +3,7 @@
 .ipynb_checkpoints/
 .vscode/
 .idea/
+
 pyproject.toml
 
 # Python 관련 파일
@@ -15,6 +16,7 @@ __pycache__/
 .venv
 env/
 .env
+.venv-backups/
 
 # 딥러닝 관련
 # 모델 체크포인트
@@ -23,6 +25,7 @@ env/
 *.h5
 *.pkl
 checkpoints/
+weights/
 
 # 로그 및 결과 파일
 logs/
