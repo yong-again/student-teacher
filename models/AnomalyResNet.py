@@ -3,7 +3,7 @@ from torchvision import models
 from torchvision.models import ResNet18_Weights
 
 class AnomalyResNet(nn.Module):
-    def __init__(self,):
+    def __init__(self):
         super(AnomalyResNet, self).__init__()
         self.resnet18 = self._get_backbone()
         self.linear = nn.Linear(512, 2)

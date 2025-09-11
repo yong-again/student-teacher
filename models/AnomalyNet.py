@@ -6,7 +6,7 @@ class AnomalyNet:
     def __init__(self):
         self.patch_cnn = {
             **dict.fromkeys([(65, 65), 65, 'big'], AnomalyNet65),
-            **dict.fromkeys([(33, 3), 33, 'medium'], AnomalyNet33),
+            **dict.fromkeys([(33, 33), 33, 'medium'], AnomalyNet33),
             **dict.fromkeys([(17, 17), 17, 'small'], AnomalyNet17),
         }
 
@@ -109,11 +109,11 @@ class AnomalyNet33(nn.Module):
         super(AnomalyNet33, self).__init__()
         self.patch_width = 33
         self.patch_height = 33
-        self.multiPoolPrepare = multiPoolPrepare(self.patch_width, self.patch_height)
+        self.multiPoolPrepare = multiPoolPrepare(self.patch_height, self.patch_width)
 
         self.conv1 = nn.Conv2d(3, 128, 5, 1)
         self.conv2 = nn.Conv2d(128, 256, 5, 1)
-        self.conv3 = nn.Conv2d(256, 512, 2, 1)
+        self.conv3 = nn.Conv2d(256, 256, 2, 1)
         self.conv4 = nn.Conv2d(256, 128, 4, 1)
         self.output_channels = self.conv4.out_channels
         self.decode = nn.Linear(128, 512)
@@ -147,7 +147,7 @@ class AnomalyNet33(nn.Module):
 
         x = self.unwrapPrepare(x)
         x = unwrapPool2(x)
-        x = unwrapPool(x)
+        x = unwrapPool1(x)
 
         y = x.view(self.output_channels, imH, imW, -1)
         y = y.permute(3, 1, 2, 0)
@@ -186,10 +186,10 @@ class AnomalyNet17(nn.Module):
         self.patch_height = 17
         self.multiPoolPrepare = multiPoolPrepare(self.patch_width, self.patch_height)
 
-        self.conv1 = nn.Conv2d(3, 128, 5, 1)
+        self.conv1 = nn.Conv2d(3, 128, 6, 1)
         self.conv2 = nn.Conv2d(128, 256, 5, 1)
         self.conv3 = nn.Conv2d(256, 256, 5, 1)
-        self.conv4 = nn.Conv2d(256, 512, 4, 1)
+        self.conv4 = nn.Conv2d(256, 128, 4, 1)
         self.output_channels = self.conv4.out_channels
         self.decode = nn.Linear(128, 512)
         self.dropout_2d = nn.Dropout(0.2)

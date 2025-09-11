@@ -78,7 +78,7 @@ def train():
 
             inputs = images.to(device)
             with torch.no_grad():
-                targets = rearrange(resnet18(inputs), 'b vec h w -> b (vec h w)')
+                targets = rearrange(resnet18(inputs), 'b vec h w -> b (vec h w)') # h=w=1
             outputs = teacher(inputs)
             loss = knowledge_distillation(outputs, targets) + compactness_loss(outputs)
 

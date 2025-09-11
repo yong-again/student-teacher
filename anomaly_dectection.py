@@ -194,7 +194,10 @@ def detect_anomaly():
             img_in = rearrange(unorm(inputs), 'b c h w -> b h w c').cpu()
             gt_in = rearrange(gt_masks, 'b c h w -> b h w c').cpu()
             
-            for b in range(inputs.shape[0]):                
+            for b in range(inputs.shape[0]):
+                result_save_path = os.path.join(result_dir, "images")
+                if not os.path.exists(result_save_path):
+                    os.makedirs(result_save_path)
                 save_path = os.path.join(result_dir, f"images/img_{b:02d}{img_count}.png")
                 visualize(img_in[b].squeeze(),
                           gt_in[b].squeeze(),
