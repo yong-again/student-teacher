@@ -29,12 +29,28 @@ def get_variance_map(students_pred):
     msse = reduce(sse, 'b id h w -> b h w', 'mean')
     mu_students = reduce(students_pred, 'b id h w vec -> b h w vec', 'mean')
     var = msse - reduce(mu_students**2, 'b h w vec -> b h w', 'sum')
+
     return var
 
 @torch.no_grad()
 def calibrate(teacher, students, dataloader, device):
     t_mu, t_var, t_N = 0, 0, 0
-    for _, (images, labels, masks) in enumerate(dataloader): # tqdm 제거
+    # Use a subset for faster calibration if the dataset is large
+    calib_iter = min(len(dataloader), 50)
+    for i, (images, _, _) in enumerate(dataloader):
+        if i >= calib_iter:
+            break
+        inputs = images.to(device)
+        t_out = teacher.fdfe(inputs)
+        t_mu, t_var, t_N = increment_mean_and_var(t_mu, t_var, t_N, t_out)
+
+    max_err, max_var = 0, 0
+    mu_err, var_err, N_err = 0, 0, 0
+    mu_var, var_var, N_var = 0, 0, 0
+
+    for i, (images, _, _) in enumerate(dataloader):
+        if i >= calib_iter:
+            break
         inputs = images.to(device)
 
         t_out = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
@@ -119,7 +135,7 @@ def detect_anomaly_multiscale():
         category=CONFIG.category,
         split='train',
         transform=image_transform,
-        mask_transform=image_transform,
+        mask_transform=mask_transform,
     )
 
     calib_dataloader = DataLoader(
@@ -130,7 +146,7 @@ def detect_anomaly_multiscale():
     )
 
     for p_size in CONFIG.patch_sizes:
-        print("f\n--- Loading models and calibrating for patch_size = {p_size} ---")
+        print(f"\n--- Loading models and calibrating for patch_size = {p_size} ---")
 
         teacher = AnomalyNet.create((p_size, p_size)).eval().to(device)
         teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', p_size)
@@ -142,9 +158,9 @@ def detect_anomaly_multiscale():
             student_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'student', p_size, i)
             load_model(student, student_model_path)
 
-    # calculate calibration parameters each scale
-    params = calibrate(teacher, students, calib_dataloader, device)
-    models_and_params_per_scale[p_size]  = {'teacher': teacher, 'stduents': students, 'params': params}
+        # calculate calibration parameters each scale
+        params = calibrate(teacher, students, calib_dataloader, device)
+        models_and_params_per_scale[p_size]  = {'teacher': teacher, 'students': students, 'params': params}
 
     # --------- inference --------- #
     test_dataset = AnomalyDataset(
@@ -152,7 +168,7 @@ def detect_anomaly_multiscale():
         category=CONFIG.category,
         split='test',
         transform=image_transform,
-        mask_transform=mask_transform,
+        mask_transform=mask_transform
     )
 
     test_dataloader = DataLoader(

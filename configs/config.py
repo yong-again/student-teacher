@@ -5,6 +5,7 @@ from typing import Tuple, List, Dict, Any
 @dataclass
 class TrainResNet:
     root_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_name: str = 'resnet34'
     num_workers: int = 4
     batch_size: int = 64
     image_size: int = 256

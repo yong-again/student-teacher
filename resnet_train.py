@@ -19,11 +19,11 @@ def train():
     sep = os.path.sep
     print(f"Device: {device}")
 
-    resnet18 = AnomalyResNet()
-    resnet18.to(device)
+    model = AnomalyResNet(config.model_name)
+    model.to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(resnet18.parameters(), lr=config.learning_rate, momentum=config.momentum)
+    optimizer = optim.SGD(model.parameters(), lr=config.learning_rate, momentum=config.momentum)
 
     resnet_transform = transforms.Compose([
         transforms.Resize((config.image_size, config.image_size)),
@@ -49,7 +49,7 @@ def train():
     if not os.path.exists(model_save_path):
         os.makedirs(model_save_path)
 
-    model_name = os.path.join(model_save_path, f'resnet18_{config.category}.pth')
+    model_name = os.path.join(model_save_path, f'{model.model_name}_{config.category}.pth')
 
     # train loop
     min_running_loss = np.inf
@@ -62,7 +62,7 @@ def train():
             optimizer.zero_grad()
             input = img.to(device)
             target = labels.to(device)
-            outputs = resnet18(input)
+            outputs = model(input)
             loss = criterion(outputs, target)
             _, preds = torch.max(outputs, 1)
 
@@ -77,7 +77,7 @@ def train():
         accuracy = running_corrects.double() / max_running_corrects
 
         if running_loss < min_running_loss and epoch > 0:
-            torch.save(resnet18.state_dict(), model_name)
+            torch.save(model.state_dict(), model_name)
             print(f"Loss decreased: {min_running_loss:.6f} -> {running_loss:.6f}.")
             print(f"Accuracy: {accuracy}")
             print(f"Model saved to {model_name}.")
