@@ -5,7 +5,7 @@ from typing import Tuple, List, Dict, Any
 @dataclass
 class TrainResNet:
     root_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_name: str = 'resnet34'
+    model_name: str = 'resnet18'
     num_workers: int = 4
     batch_size: int = 64
     image_size: int = 256
@@ -25,6 +25,7 @@ class TrainTeacher:
     learning_rate: float = 2e-4
     weight_decay: float = 1e-5
     num_epochs: int = 1000
+    model_name: str = 'resnet18'
 
 @dataclass
 class TrainStudent:
@@ -38,6 +39,7 @@ class TrainStudent:
     learning_rate: float = 1e-4
     weight_decay: float = 1e-5
     num_epochs: int = 15
+    model_name: str = 'resnet18'
 
 
 @dataclass

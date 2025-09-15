@@ -26,7 +26,9 @@ def train():
     teacher.to(device).eval()
 
     # load teacher model
-    teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', CONFIG.patch_size)
+    teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher',
+                                        model_name=CONFIG.model_name,
+                                        patch_size=CONFIG.patch_size)
     if os.path.exists(teacher_model_path):
         load_model(teacher, teacher_model_path)
         print(f"Successfully loaded: {teacher_model_path}")
@@ -93,7 +95,8 @@ def train():
 
                 inputs = images.to(device)
                 with torch.no_grad():
-                    targets = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
+                    std = torch.sqrt(t_var + 1e-6)
+                    targets = (teacher.fdfe(inputs) - t_mu) / std
                 outputs = student.fdfe(inputs)
                 loss = student_loss(targets, outputs)
 
@@ -108,8 +111,8 @@ def train():
                         model_path = get_model_path(CONFIG.root_dir,
                                                     CONFIG.category,
                                                     'student',
-                                                    CONFIG.patch_size,
-                                                    j)
+                                                    patch_size=CONFIG.patch_size,
+                                                    number=j)
                         torch.save(student.state_dict(), model_path)
                         print(f"Loss decreased: {min_running_loss} -> {running_loss}.")
                         print(f"Model saved to {model_path}.")

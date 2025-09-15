@@ -41,7 +41,6 @@ def calibrate(teacher, students, dataloader, device):
         t_out = teacher.fdfe(inputs)
         t_mu, t_var, t_N = increment_mean_and_var(t_mu, t_var, t_N, t_out)
 
-    print("Calibrating scoring parameters on students")
     max_err, max_var = 0, 0
     mu_err, var_err, N_err = 0, 0, 0
     mu_var, var_var, N_var = 0, 0, 0
@@ -119,7 +118,7 @@ def detect_anomaly():
     teacher.eval().to(device)
 
     # load teacher model
-    teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', CONFIG.patch_size)
+    teacher_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'teacher', patch_size=CONFIG.patch_size)
     if os.path.exists(teacher_model_path):
         load_model(teacher, teacher_model_path)
         print(f"Successfully teacher model loaded: {teacher_model_path}")
@@ -130,7 +129,9 @@ def detect_anomaly():
 
     # loading students models
     for i in range(CONFIG.n_students):
-        student_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'student', CONFIG.patch_size, i)
+        student_model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'student',
+                                            patch_size=CONFIG.patch_size,
+                                            number=i)
         if os.path.exists(student_model_path):
             load_model(students[i], student_model_path)
             print(f"Successfully student model loaded: {student_model_path}")
