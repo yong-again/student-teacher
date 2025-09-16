@@ -5,7 +5,7 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 from einops import rearrange, reduce
 import os
-
+import torch.nn.functional as F
 
 from models.AnomalyNet import AnomalyNet
 from dataset.AnomalyDataset import AnomalyDataset
@@ -24,35 +24,57 @@ def get_err_map(students_pred, teacher_pred):
     return err
 
 
+# def get_variance_map(students_pred):
+#     # student: [batch, student_id, h, w, vector]
+#     sse = reduce(students_pred, 'b id h w vec -> b id h w', 'mean')
+#     msse = reduce(sse, 'b id h w -> b h w', 'mean')
+#     mu_students = reduce(students_pred, 'b id h w vec -> b h w vec', 'mean')
+#     var = msse - reduce(mu_students**2, 'b h w vec -> b h w', 'sum')
+#
+#     return var
+
 def get_variance_map(students_pred):
-    # student: [batch, student_id, h, w, vector]
-    sse = reduce(students_pred, 'b id h w vec -> b id h w', 'mean')
-    msse = reduce(sse, 'b id h w -> b h w', 'mean')
+    # students_pred: [b, id, h, w, vec]
     mu_students = reduce(students_pred, 'b id h w vec -> b h w vec', 'mean')
-    var = msse - reduce(mu_students**2, 'b h w vec -> b h w', 'sum')
+    # E[X^2]
+    ex2 = reduce(students_pred**2, 'b id h w vec -> b h w', 'mean')
+    # (E[X])^2 = sum over vec of (mu^2)
+    emu2 = reduce(mu_students**2, 'b h w vec -> b h w', 'sum')
+    var = ex2 - emu2
     return var
 
 @torch.no_grad()
-def calibrate(teacher, students, dataloader, device):
+def calibrate(teacher, students, dataloader, device, use_l2_norm=True):
     print("Calibrating teacher on students")
+
     t_mu, t_var, t_N = 0, 0, 0
     for _, (images, labels, masks) in enumerate(tqdm(dataloader)):
         inputs = images.to(device)
         t_out = teacher.fdfe(inputs)
+        if use_l2_norm:
+            t_out = torch.nn.functional.normalize(t_out, dim=-1)
         t_mu, t_var, t_N = increment_mean_and_var(t_mu, t_var, t_N, t_out)
 
     max_err, max_var = 0, 0
     mu_err, var_err, N_err = 0, 0, 0
     mu_var, var_var, N_var = 0, 0, 0
 
-    for _, (images, labels, masks) in enumerate(tqdm(dataloader)):
+    for images, _, _ in tqdm(dataloader):
         inputs = images.to(device)
 
-        t_out = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
-        s_out = torch.stack([student.fdfe(inputs) for student in students])
+        t_out = teacher.fdfe(inputs)
+        if use_l2_norm:
+            t_out = F.normalize(t_out, dim=-1)
+        t_out = (t_out - t_mu) / torch.sqrt((t_var + 1e+6))
+
+        #t_out = (teacher.fdfe(inputs) - t_mu) / torch.sqrt(t_var)
+        s_out = torch.stack([student.fdfe(inputs) for student in students], dim=1)
+        if use_l2_norm:
+            s_out = F.normalize(s_out, dim=-1)
 
         s_err = get_err_map(s_out, t_out)
         s_var = get_variance_map(s_out)
+
         mu_err, var_err, N_err = increment_mean_and_var(mu_err, var_err, N_err, s_err)
         mu_var, var_var, N_var = increment_mean_and_var(mu_var, var_var, N_var, s_var)
 
@@ -67,14 +89,25 @@ def calibrate(teacher, students, dataloader, device):
                 }
 
 @torch.no_grad()
-def get_score_map(inputs, teacher, students, params):
-    t_out = (teacher.fdfe(inputs) - params['teacher']['mu']) / torch.sqrt(params['teacher']['var'])
+def get_score_map(inputs, teacher, students, params, use_l2_norm=True):
+    t_out = teacher.fdfe(inputs)
+    if use_l2_norm:
+        t_out = F.normalize(teacher.fdfe(inputs), dim=-1)
+    #t_out = (teacher.fdfe(inputs) - params['teacher']['mu']) / torch.sqrt(params['teacher']['var'])
+    t_out = (t_out - params['teacher']['mu']) / torch.sqrt((params['teacher']['var'] + 1e+6))
+
     s_out = torch.stack([student.fdfe(inputs) for student in students], dim=1)
+    if use_l2_norm:
+        s_out = F.normalize(s_out, dim=-1)
 
     s_err = get_err_map(s_out, t_out)
     s_var = get_variance_map(s_out)
-    score_map = (s_err - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var']) \
-                + (s_var - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var'])
+
+    # score_map = (s_err - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'] + 1e-6) \
+    #             + (s_var - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var'] + 1e-6)
+
+    score_map = ((s_err - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'] + 1e-6)
+                + (s_var - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var'] + 1e-6))
 
     return score_map
 
@@ -139,7 +172,7 @@ def detect_anomaly():
     image_transforms = transforms.Compose([
         transforms.Resize((CONFIG.image_size, CONFIG.image_size)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
 
     mask_transform = transforms.Compose([
@@ -160,7 +193,7 @@ def detect_anomaly():
                                   shuffle=False,
                                   num_workers=CONFIG.num_workers)
 
-    params = calibrate(teacher, students, calib_dataloader, device)
+    params = calibrate(teacher, students, calib_dataloader, device, use_l2_norm=True)
 
     # Load test dataset
     test_dataset = AnomalyDataset(root_dir=CONFIG.root_dir,
@@ -189,7 +222,8 @@ def detect_anomaly():
         y_true = np.concatenate((y_true, rearrange(gt_masks, 'b c h w -> (b h w c)').cpu().numpy()))
 
         if CONFIG.visualize:
-            unorm = transforms.Normalize((-1, -1,-1), (2, 2, 2))
+            unorm = transforms.Normalize(mean=(-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225),
+                                         std=(1 / 0.229, 1 / 0.224, 1 / 0.225))
             max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var']) \
             + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
             img_in = rearrange(unorm(inputs), 'b c h w -> b h w c').cpu()
@@ -209,7 +243,7 @@ def detect_anomaly():
                 
     y_true = np.where(y_true > 0.5, 1, 0).astype(int)
     
-    if len(np.unique(y_true) > 1):
+    if len(np.unique(y_true)) > 1:
         fpr, tpr, _ = roc_curve(y_true, y_score)
         pixel_auroc = auc(fpr, tpr)
         print(f"Pixel-level AUROC: {pixel_auroc:.4f}")

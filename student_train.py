@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import os
 from tqdm.auto import tqdm
 from torchvision import transforms
+import torch.nn.functional as F
 
 from dataset.AnomalyDataset import AnomalyDataset
 from models.AnomalyNet import AnomalyNet
@@ -50,7 +51,7 @@ def train():
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]),
         category=CONFIG.category
     )
@@ -73,7 +74,8 @@ def train():
         for i, (images, labels, masks) in enumerate(tqdm(dataloader)):
             inputs = images.to(device)
             t_out = teacher.fdfe(inputs)
-            t_mu, t_var, N = increment_mean_and_var(t_mu, t_var, N, t_out)
+            t_out_norm = F.normalize(t_out, dim=-1)
+            t_mu, t_var, N = increment_mean_and_var(t_mu, t_var, N, t_out_norm)
 
     # training
     dataloader = DataLoader(
@@ -82,6 +84,7 @@ def train():
         shuffle=True,
         num_workers=CONFIG.num_workers,
     )
+    teacher.eval().requires_grad_(False)
 
     for j, student in enumerate(students):
         min_running_loss = np.inf
@@ -96,7 +99,10 @@ def train():
                 inputs = images.to(device)
                 with torch.no_grad():
                     std = torch.sqrt(t_var + 1e-6)
-                    targets = (teacher.fdfe(inputs) - t_mu) / std
+                    t = teacher.fdfe(inputs)
+                    t = F.normalize(t, dim=-1)
+                    targets = (t - t_mu) / std
+
                 outputs = student.fdfe(inputs)
                 loss = student_loss(targets, outputs)
 

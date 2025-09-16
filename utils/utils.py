@@ -16,6 +16,7 @@ def load_model(model, path):
 
 def get_model_path(root_dir, category, type, model_name=None, patch_size=None, number=None):
     model_weights_base_path = os.path.join(root_dir, 'weights', category)
+    os.makedirs(model_weights_base_path, exist_ok=True)
     if type.lower() == 'resnet':
         return os.path.join(model_weights_base_path, f'{model_name}_{category}.pth')
     elif type == 'teacher' and patch_size is not None:
