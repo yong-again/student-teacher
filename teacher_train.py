@@ -26,11 +26,11 @@ def train():
     print(f"Device used: {device}")
     CONFIG = TrainTeacher()
 
+    model_path = get_model_path(CONFIG.root_dir, CONFIG.category, 'resnet', model_name=CONFIG.model_name)
     # load resnet model for knowledge distillation
     resnet = AnomalyResNet(model_name=CONFIG.model_name)
-    #load_model(resnet, model_path)
+    load_model(resnet, model_path)
     # resnet = nn.Sequential(*list(resnet.children())[:-1])
-    # print(resnet)
     resnet.to(device).eval().requires_grad_(False)
     #print(f"Successfully Model loaded: {model_path}")
 
@@ -52,8 +52,8 @@ def train():
             transforms.RandomVerticalFlip(),
             transforms.RandomRotation(180),
             transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                                 std=(0.229, 0.224, 0.225))
+            transforms.Normalize(mean=(0.5, 0.5, 0.5),
+                                 std=(0.5, 0.5, 0.5))
         ]),
         split='train',
         category=CONFIG.category,
@@ -80,9 +80,10 @@ def train():
             inputs = images.to(device)
             with torch.no_grad():
                 targets = resnet(inputs).detach() # h=w=1
+
             outputs = teacher(inputs)
             if outputs.dim() == 4:
-                outputs = torch.nn.functional.adaptive_avg_pool2d(outputs, 1).flatten(1)
+                outputs = F.adaptive_avg_pool2d(outputs, 1).flatten(1) # (B, C, H, W) -> (B, C)
 
             targets_n = F.normalize(targets, dim=1)
             outputs_n = F.normalize(outputs, dim=1)
@@ -92,7 +93,6 @@ def train():
             loss = lambda_k * Lk + lambda_c * Lc # Lt = Lk + Lm + Lc(1:0:1)
 
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(teacher.parameters(), 1.0)
             optimizer.step()
             running_loss += loss.item()
 

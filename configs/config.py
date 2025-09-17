@@ -21,7 +21,7 @@ class TrainTeacher:
     num_workers: int = 4
     batch_size: int = 64
     image_size: int = 256
-    patch_size: int = 17
+    patch_size: int = 33
     learning_rate: float = 2e-4
     weight_decay: float = 1e-5
     num_epochs: int = 1000
@@ -35,7 +35,7 @@ class TrainStudent:
     batch_size: int = 1
     n_students: int = 3
     image_size: int = 256
-    patch_size: int = 17
+    patch_size: int = 33
     learning_rate: float = 1e-4
     weight_decay: float = 1e-5
     num_epochs: int = 15
@@ -48,7 +48,7 @@ class Inference:
     category: str = 'metal_nut'
     test_size: int = 20
     n_students: int = 3
-    patch_size: int = 17
+    patch_size: int = 33
     image_size: int = 256
     visualize: bool = True
     batch_size: int = 1

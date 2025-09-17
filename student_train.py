@@ -51,7 +51,7 @@ def train():
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ]),
         category=CONFIG.category
     )
@@ -88,7 +88,7 @@ def train():
 
     for j, student in enumerate(students):
         min_running_loss = np.inf
-        print(f'Training Student {j} on anomaly-free dataset ...')
+        print(f'Training Student {j} on anomaly-free dataset...')
 
         for epoch in range(CONFIG.num_epochs):
             running_loss = 0.0
